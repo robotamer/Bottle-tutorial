@@ -248,8 +248,7 @@ To do so, we first add a new route to our script and tell the route that it shou
         conn = sqlite3.connect('todo.db')
         c = conn.cursor()
         
-        query = "INSERT INTO todo (task,status) VALUES ('%s',1)" %new
-        c.execute(query)
+        c.execute("INSERT INTO todo (task,status) VALUES (?,?)", (new,1))
         conn.commit()
         
         c.execute("SELECT last_insert_rowid()")
@@ -274,19 +273,18 @@ The code need to be extended to:
     def new_item():
 
     if request.GET.get('save','').strip():
-        
+
         new = request.GET.get('task', '').strip()
         conn = sqlite3.connect('todo.db')
         c = conn.cursor()
-        
-        query = "INSERT INTO todo (task,status) VALUES ('%s',1)" %new
-        c.execute(query)
+
+        c.execute("INSERT INTO todo (task,status) VALUES (?,?)", (new,1))
         conn.commit()
-        
+
         c.execute("SELECT last_insert_rowid()")
         new_id = c.fetchone()[0]
         c.close 
-  
+          
         return '<p>The new task was inserted into the database, the ID is %s</p>' %new_id
     
     else:
@@ -339,27 +337,25 @@ The code looks like this:
         if request.GET.get('save','').strip():
             edit = request.GET.get('task','').strip()
             status = request.GET.get('status','').strip()
-            
+    
             if status == 'open':
                 status = 1
             else:
                 status = 0
-                
+        
             conn = sqlite3.connect('todo.db')
             c = conn.cursor()
-            query = "UPDATE todo SET task = '%s', status = '%s' WHERE id LIKE '%s'" % (edit,status,no)
-            c.execute(query)
+            c.execute("UPDATE todo SET task = ?, status = ? WHERE id LIKE ?", (edit,status,no))
             conn.commit()
-            
-            return '<p>The item number %d was successfully updated</p>' %no
-            
+        
+            return '<p>The item number %s was successfully updated</p>' %no
+
         else:
             conn = sqlite3.connect('todo.db')
             c = conn.cursor()
-            query = "SELECT task, status FROM todo WHERE id LIKE '%d'" %no
-            c.execute(query)
+            c.execute("SELECT task FROM todo WHERE id LIKE ?", (str(no)))
             cur_data = c.fetchone()
-            
+        
             return template('edit_task', old = cur_data, no = no)
 
 It is basically pretty much the same what we already did above when adding new items, like using "GET"-data etc. The main addition here is using the dynamic route ":no", which here passes the number to the corresponding function. As you can see, "no" is used within the function to access the right row of data within the database.
@@ -421,12 +417,15 @@ As said above, the solution is a regular expression:
 
 ::
 
+    #!Python
+    ...
+
     @route('/item:item#[1-9]+#')
     def show_item(item):
     
         conn = sqlite3.connect('todo.db')
         c = conn.cursor()
-        c.execute("SELECT task FROM todo WHERE id LIKE '%s'" %item)
+        c.execute("SELECT task FROM todo WHERE id LIKE ?", (item))
         result = c.fetchall()
         c.close()
             
@@ -434,7 +433,10 @@ As said above, the solution is a regular expression:
             return 'This item number does not exist!'
         else:
             return 'Task: %s' %result[0]
-    
+
+
+    ...
+        
 Of course, this example is somehow artificially constructed - it would be easier to use a plain dynamic route only combined with a validation. Nevertheless, we want to see how regular expression routes work: The line ``@route(/item:item_#[1-9]+#)`` starts like a normal route, but the part surrounded by # is interpreted as a regular expression, which is the dynamic part of the route. So in this case, we want to match any digit between 0 and 9. The following function "show_item" just checks whether the given item is present in the database or not. In case it is present, the corresponding text of the task is returned. As you can see, only the regular expression part of the route is passed forward. Furthermore, it is always forwarded as a string, even if it is a plain integer number, like in this case.
 
 Returning Static Files
@@ -444,12 +446,17 @@ Sometimes it may become necessary to associate a route not to a Python function,
 
 ::
 
+    #!Python
     from bottle import route, run, debug, template, request, validate, send_file
 
+    ...
+        
     @route('/help')
     def help():
 
         send_file('help.html', root='/path/to/file')
+       
+    ...
         
 At first, we need to import ``send_file`` from Bottle. As you can see, the ``send_file`` statement replace the ``return`` statement. It takes at least two arguments: The name of the file to be returned and the path to the file. Even if the file is in the same directory as your application, the path needs to be stated. But in this case, you can use ``'.'`` as a path, too. Bottle guesses the MIME-type of the file automatically, but in case you like to state it explicitly, add a third argument to ``send_file``, which would be here ``mimetype='text/html'``. ``send_file`` works with any type of route, including the dynamic ones.
 
@@ -462,12 +469,15 @@ So, let's assume we want to return the data generated in the regular expression 
 
 ::
 
+    #!Python
+    ...
+
     @route('/json:json#[1-9]+#')
     def show_json(json):
     
         conn = sqlite3.connect('todo.db')
         c = conn.cursor()
-        c.execute("SELECT task FROM todo WHERE id LIKE '%s'" %item)
+        c.execute("SELECT task FROM todo WHERE id LIKE ?", (item))
         result = c.fetchall()
         c.close()
             
@@ -475,6 +485,8 @@ So, let's assume we want to return the data generated in the regular expression 
             return {'task':'This item number does not exist!'}
         else:
             return {'Task': result[0]}
+
+    ...
 
 As you can, that is fairly simple: Just return a regular Python dictionary and Bottle will convert it automatically into a JSON object prior to sending. So if you e.g. call "http://localhost/json1" Bottle should in this case return the JSON object ``{"Task": ["Read A-byte-of-python to get a good introduction into Python"]}``.
 

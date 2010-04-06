@@ -13,16 +13,16 @@ Main code for the application ``todo.py``:
 
     # only needed when you run Bottle on mod_wsgi
     from bottle import default_app
-        
+
     @route('/todo')
     def todo_list():
-        
+
         conn = sqlite3.connect('todo.db')
         c = conn.cursor()
         c.execute("SELECT id, task FROM todo WHERE status LIKE '1';")
         result = c.fetchall()
         c.close()
-            
+
         output = template('make_table', rows=result)
         return output
 
@@ -30,24 +30,23 @@ Main code for the application ``todo.py``:
     def new_item():
 
         if request.GET.get('save','').strip():
-            
+
             new = request.GET.get('task', '').strip()
             conn = sqlite3.connect('todo.db')
             c = conn.cursor()
-            
-            query = "INSERT INTO todo (task,status) VALUES ('%s',1)" %new
-            c.execute(query)
+
+            c.execute("INSERT INTO todo (task,status) VALUES (?,?)", (new,1))
             conn.commit()
-            
+
             c.execute("SELECT last_insert_rowid()")
             new_id = c.fetchone()[0]
             c.close 
-      
+              
             return '<p>The new task was inserted into the database, the ID is %s</p>' %new_id
-        
+
         else:
             return template('new_task.tpl')
-            
+
     @route('/edit/:no', method='GET')
     @validate(no=int)
     def edit_item(no):
@@ -55,62 +54,60 @@ Main code for the application ``todo.py``:
         if request.GET.get('save','').strip():
             edit = request.GET.get('task','').strip()
             status = request.GET.get('status','').strip()
-            
+
             if status == 'open':
                 status = 1
             else:
                 status = 0
-                
+        
             conn = sqlite3.connect('todo.db')
             c = conn.cursor()
-            query = "UPDATE todo SET task = '%s', status = '%s' WHERE id LIKE '%s'" % (edit,status,no)
-            c.execute(query)
+            c.execute("UPDATE todo SET task = ?, status = ? WHERE id LIKE ?", (edit,status,no))
             conn.commit()
-            
+        
             return '<p>The item number %s was successfully updated</p>' %no
-            
+
         else:
             conn = sqlite3.connect('todo.db')
             c = conn.cursor()
-            query = "SELECT task FROM todo WHERE id LIKE '%s'" %no
-            c.execute(query)
+            c.execute("SELECT task FROM todo WHERE id LIKE ?", (str(no)))
             cur_data = c.fetchone()
-            print cur_data
             
             return template('edit_task', old = cur_data, no = no)
-            
+
     @route('/item:item#[1-9]+#')
     def show_item(item):
-    
-        conn = sqlite3.connect('todo.db')
-        c = conn.cursor()
-        c.execute("SELECT task FROM todo WHERE id LIKE '%s'" %item)
-        result = c.fetchall()
-        c.close()
-            
-        if not result:
-            return 'This item number does not exist!'
-        else:
-            return 'Task: %s' %result[0]
-            
+        
+            conn = sqlite3.connect('todo.db')
+            c = conn.cursor()
+            c.execute("SELECT task FROM todo WHERE id LIKE ?", (item))
+            result = c.fetchall()
+            c.close()
+                
+            if not result:
+                return 'This item number does not exist!'
+            else:
+                return 'Task: %s' %result[0]
+                
     @route('/help')
     def help():
 
-        send_file('help.html')
+        send_file('help.html', root='.')
 
     @route('/json:json#[1-9]+#')
     def show_json(json):
-    
+        
         conn = sqlite3.connect('todo.db')
         c = conn.cursor()
-        c.execute("SELECT task FROM todo WHERE id LIKE '%s'" %item)
+        c.execute("SELECT task FROM todo WHERE id LIKE ?", (json))
         result = c.fetchall()
         c.close()
-            
+                
         if not result:
             return {'task':'This item number does not exist!'}
         else:
             return {'Task': result[0]}
+
 
     @error(403)
     def mistake403(code):
@@ -121,9 +118,9 @@ Main code for the application ``todo.py``:
         return 'Sorry, this page does not exist!'
 
 
-    debug(True)      
+    debug(True)  
     run(reloader=True)
-    #remember to remove reloader=True and debug(True) when you move your application from development to a productive environment.
+    #remember to remove reloader=True and debug(True) when you move your application from development to a productive environment
     
 Template ``make_table.tpl``:
 
