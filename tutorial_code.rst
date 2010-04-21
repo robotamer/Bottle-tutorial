@@ -9,7 +9,7 @@ Main code for the application ``todo.py``:
 
     #!Python
     import sqlite3
-    from bottle import route, run, debug, template, request, validate, send_file, error
+    from bottle import route, run, debug, template, request, send_file, error
 
     # only needed when you run Bottle on mod_wsgi
     from bottle import default_app
@@ -21,7 +21,7 @@ Main code for the application ``todo.py``:
         c = conn.cursor()
         c.execute("SELECT id, task FROM todo WHERE status LIKE '1';")
         result = c.fetchall()
-        c.close()
+        conn.close()
 
         output = template('make_table', rows=result)
         return output
@@ -36,11 +36,10 @@ Main code for the application ``todo.py``:
             c = conn.cursor()
 
             c.execute("INSERT INTO todo (task,status) VALUES (?,?)", (new,1))
-            conn.commit()
-
             c.execute("SELECT last_insert_rowid()")
             new_id = c.fetchone()[0]
-            c.close 
+            conn.commit()
+            conn.close 
               
             return '<p>The new task was inserted into the database, the ID is %s</p>' %new_id
 
@@ -48,7 +47,6 @@ Main code for the application ``todo.py``:
             return template('new_task.tpl')
 
     @route('/edit/:no', method='GET')
-    @validate(no=int)
     def edit_item(no):
 
         if request.GET.get('save','').strip():
@@ -64,14 +62,16 @@ Main code for the application ``todo.py``:
             c = conn.cursor()
             c.execute("UPDATE todo SET task = ?, status = ? WHERE id LIKE ?", (edit,status,no))
             conn.commit()
+            conn.close()
         
             return '<p>The item number %s was successfully updated</p>' %no
 
         else:
             conn = sqlite3.connect('todo.db')
             c = conn.cursor()
-            c.execute("SELECT task FROM todo WHERE id LIKE ?", (str(no)))
+            c.execute("SELECT task FROM todo WHERE id LIKE ?", no)
             cur_data = c.fetchone()
+            conn.close()
             
             return template('edit_task', old = cur_data, no = no)
 
@@ -80,9 +80,9 @@ Main code for the application ``todo.py``:
         
             conn = sqlite3.connect('todo.db')
             c = conn.cursor()
-            c.execute("SELECT task FROM todo WHERE id LIKE ?", (item))
+            c.execute("SELECT task FROM todo WHERE id LIKE ?", item)
             result = c.fetchall()
-            c.close()
+            conn.close()
                 
             if not result:
                 return 'This item number does not exist!'
@@ -99,9 +99,9 @@ Main code for the application ``todo.py``:
         
         conn = sqlite3.connect('todo.db')
         c = conn.cursor()
-        c.execute("SELECT task FROM todo WHERE id LIKE ?", (json))
+        c.execute("SELECT task FROM todo WHERE id LIKE ?", json)
         result = c.fetchall()
-        c.close()
+        conn.close()
                 
         if not result:
             return {'task':'This item number does not exist!'}

@@ -40,8 +40,9 @@ We will end up with an application with the following pages and functionality:
  * start page ``http://localhost:8080/todo``
  * adding new items to the list: ``http://localhost:8080/new``
  * page for editing items: ``http://localhost:8080/edit/:no`` 
- * validating data assigned by dynamic routes with the @validate decorator
  * catching errors
+ * sending static files
+ * sending JSON data
 
 Before We Start...
 --------------------
@@ -56,27 +57,32 @@ You can either manually install Bottle or use Python's easy_install: ``easy_inst
 Further Software Necessities
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-As we use SQLite3 as a database, make sure it is installed. On Linux systems, most distributions have SQLite3 installed by default. SQLite is available for Windows_ and MacOS X as well.
+As we use SQLite3 as a database, make sure it is installed. Python versions >= 2.5 usually come with SQlite included, so there is no more work to do. To see if this is really the case, open a Python interpreter and type ``import sqlite3``. In case you do not get an error message, everything is fine and you can jump to the next chapter.
 
-Furthermore, you need Pysqlite_, the Python modules to access SQLite databases. Again, many Linux distributions have the module (often called "python-sqlite3") pre-installed, otherwise just install manually or via ``easy_install pysqlite``.
+If this is not the case: on Linux systems, most distributions have SQLite3 installed by default. SQLite is available for Windows_ and MacOS X as well. Furthermore, you need Pysqlite_, the Python modules to access SQLite databases. Again, many Linux distributions have the module (often called "python-sqlite3") pre-installed, otherwise just install manually or via ``easy_install pysqlite``.
 
-*Note*: Many older systems have SQLite2 pre-installed. All examples will work fine with this version, too. You just need to import the corresponding Python module named "sqlite" instead of "sqlite3", as used in the examples below.
+*Note*: Many older systems may have SQLite2 pre-installed. All examples will work fine with this version, too. You just need to import the corresponding Python module named "sqlite" instead of "sqlite3", as used in the examples below.
 
 Create An SQL Database
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-First, we need to create the database we use later on. To do so, run SQLite with the command ``sqlite3 todo.db``. This will create an empty data base called "todo.sql" and you will see the SQLite prompt, which may look like this: ``sqlite>``. Right here, input the following commands:
+First, we need to create the database we use later on. This can be easily done with the help of Python by running the following script:
 
 ::
 
-    #!sql
-    CREATE TABLE todo (id INTEGER PRIMARY KEY, task char(100) NOT NULL, status bool NOT NULL);
-    INSERT INTO todo (task,status) VALUES ('Read A-byte-of-python to get a good introduction into Python',0);
-    INSERT INTO todo (task,status) VALUES ('Visit the Python website',1);
-    INSERT INTO todo (task,status) VALUES ('Test various editors for and check the syntax highlighting',1);
-    INSERT INTO todo (task,status) VALUES ('Choose your favorite WSGI-Framework',0);
+    #!python
+    import sqlite3
+    conn = sqlite3.connect("todo.db")
+    c = conn.cursor()
+    c.execute("CREATE TABLE todo (id INTEGER PRIMARY KEY, task char(100) NOT NULL, status bool NOT NULL)")
+    c.execute("INSERT INTO todo (task,status) VALUES ('Read A-byte-of-python to get a good introduction into Python',0)")
+    c.execute("INSERT INTO todo (task,status) VALUES ('Visit the Python website',1)")
+    c.execute("INSERT INTO todo (task,status) VALUES ('Test various editors for and check the syntax highlighting',1)")
+    c.execute("INSERT INTO todo (task,status) VALUES ('Choose your favorite WSGI-Framework',0)")
+    conn.commit()
+    conn.close()
 
-The first line generates a tables called "todo" with the three columns "id", "task", and "status". "id" is a unique id for each row, which is used later on to reference the rows. The column "task" holds the text which describes the task, it can be max 100 characters long. Finally, the column "status" is used to mark a task as open (value 1) or closed (value 0).
+First, a table called "todo" with the three columns "id", "task", and "status" is generated. "id" is a unique id for each row, which is used later on to reference the rows. The column "task" holds the text which describes the task, it can be max 100 characters long. Finally, the column "status" is used to mark a task as open (value 1) or closed (value 0).
 
 Using Bottle For A Web-Based ToDo List
 -----------------------------------------
@@ -128,7 +134,7 @@ will work fine, too. What will not work is to bind one route to more than one fu
 
 What you will see in the browser is what is returned, thus the value given by the ``return`` statement. In this example, we need to convert "result" in to a string by ``str()``, as Bottle expects a string or a list of strings from the return statement. But here, the result of the database query is a list of tuples, which is the standard defined by the `Python DB API`_.
 
-Now, after understanding the little script above, it is time to execute it and watch the result yourself. Remember that on Linux- / Unix-based systems the file "todo.py" need to be executable first. Then, just run ``python todo.py`` and call the page ``http://localhost:8080/todo`` in your browser. In case you made no mistake writing the script, the output should look like this:
+Now, after understanding the little script above, it is time to execute it and watch the result yourself. Remember that on Linux- / Unix-based systems the file "todo.py" needs to be made executable first. Then, just run ``python todo.py`` and call the page ``http://localhost:8080/todo`` in your browser. In case you made no mistake writing the script, the output should look like this:
 
 ::
 
@@ -189,7 +195,7 @@ To include the template into our example, just add the following lines:
     from bottle import from bottle import route, run, debug, template
     ...
     result = c.fetchall()
-    c.close()
+    conn.close()
     output = template('make_table', rows=result)
     return output
     ...
@@ -249,15 +255,14 @@ To do so, we first add a new route to our script and tell the route that it shou
         c = conn.cursor()
         
         c.execute("INSERT INTO todo (task,status) VALUES (?,?)", (new,1))
-        conn.commit()
-        
         c.execute("SELECT last_insert_rowid()")
         new_id = c.fetchone()[0]
-        c.close
+        conn.commit()
+        conn.close
         
         return '<p>The new task was inserted into the database, the ID is %s</p>
        
-To access GET (or POST) data, we need to import "request" from Bottle. To assign the actual data to a variable, we use the statement ``request.GET.get('task','').strip()`` statement, where "task" is the name of the GET-data we want to access. That's all. If your GET-data has more than one variable, multiple ``request.GET.get()`` statements can be used and assigned to other variables.
+To access GET (or POST) data, we need to import "request" from Bottle. To assign the actual data to a variable, we use the statement ``request.GET.get('task','').strip()`` statement, where "task" is the name of the GET-data we want to access. That's all. If your GET-data has more than one variable, multiple ``request.GET.get()`` statements can be used and assigned to other variables. By the way: This works exactly the same way with POST data. Just replace "GET" with "POST" in the above (and the following) examples.
 
 The rest of this piece of code is just processing of the gained data: writing to the database, retrieve the corresponding id from the database and generate the output.
 
@@ -283,7 +288,7 @@ The code need to be extended to:
 
         c.execute("SELECT last_insert_rowid()")
         new_id = c.fetchone()[0]
-        c.close 
+        conn.close()
           
         return '<p>The new task was inserted into the database, the ID is %s</p>' %new_id
     
@@ -305,8 +310,6 @@ The code need to be extended to:
 That's all. As you can see, the template is plain HTML this time.
 
 Now we are able to extend our to do list.
-
-By the way, if you prefer to use POST-data: This works exactly the same why, just use ``request.POST.get()`` instead.
 
 Editing Existing Items - Dynamic Routes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -347,14 +350,16 @@ The code looks like this:
             c = conn.cursor()
             c.execute("UPDATE todo SET task = ?, status = ? WHERE id LIKE ?", (edit,status,no))
             conn.commit()
+            conn.close()
         
             return '<p>The item number %s was successfully updated</p>' %no
 
         else:
             conn = sqlite3.connect('todo.db')
             c = conn.cursor()
-            c.execute("SELECT task FROM todo WHERE id LIKE ?", (str(no)))
+            c.execute("SELECT task FROM todo WHERE id LIKE ?", str(no))
             cur_data = c.fetchone()
+            conn.close()
         
             return template('edit_task', old = cur_data, no = no)
 
@@ -380,31 +385,13 @@ The template "edit_task.tpl" called within the function looks like this:
 
 Again, this template is a mix of Python statements and HTML, as already explained above.
 
-A last word on dynamic routes: you can even use a regular expression for a dynamic route. But this topic is not discussed further here.
+A last word on dynamic routes: you can even use a regular expression for a dynamic route. This is shown a bit later in this tutorial.
 
 Validating Dynamic Routes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Using dynamic routes is fine, but for many cases it makes sense to validate the dynamic part of the route. For example, we expect a integer number in our route for editing above. But if a float, characters or so are received, the Python interpreter throws an exception, which is not what we want.
+In documentations on previous versions of Bottle, you may find sections describing the ``@valdiate`` decorator. Since version 0.7, this feature is marked at "deprecated". This reason for this is, in very short words, that it is in most cases more useful to take care of validation yourself, if needed. Thus, validating routes by ``@validate`` is not explained any further here.
 
-For those cases, Bottle offers the ``@valdiate`` decorator, which validates the "input" prior to passing it to the function. In order to apply the validator, extend the code as follows:
-
-::
-
-    #!Python
-    from bottle import route, run, debug, template, request, validate
-    
-    ...
-    
-    @route('/edit/:no', method='GET')
-    @validate(no=int)
-    def edit_item(no):
-    
-    ...
-    
-At first, we imported "validate" from the Bottle framework, than we apply the @validate-decorator. Right here, we validate if "no" is an integer. Basically, the validation works with all types of data like floats, lists etc.
-
-Save the code and call the page again using a "403 forbidden" value for ":no", e.g. a float. You will receive not an exception, but a "403 - Forbidden" error, saying that a integer was expected.
 
 Dynamic Routes Using Regular Expressions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -425,9 +412,9 @@ As said above, the solution is a regular expression:
     
         conn = sqlite3.connect('todo.db')
         c = conn.cursor()
-        c.execute("SELECT task FROM todo WHERE id LIKE ?", (item))
+        c.execute("SELECT task FROM todo WHERE id LIKE ?", item)
         result = c.fetchall()
-        c.close()
+        conn.close()
             
         if not result:
             return 'This item number does not exist!'
@@ -447,7 +434,7 @@ Sometimes it may become necessary to associate a route not to a Python function,
 ::
 
     #!Python
-    from bottle import route, run, debug, template, request, validate, send_file
+    from bottle import route, run, debug, template, request, send_file
 
     ...
         
@@ -477,9 +464,9 @@ So, let's assume we want to return the data generated in the regular expression 
     
         conn = sqlite3.connect('todo.db')
         c = conn.cursor()
-        c.execute("SELECT task FROM todo WHERE id LIKE ?", (item))
+        c.execute("SELECT task FROM todo WHERE id LIKE ?", item)
         result = c.fetchall()
-        c.close()
+        conn.close()
             
         if not result:
             return {'task':'This item number does not exist!'}
@@ -501,7 +488,7 @@ In our case, we want to catch a 403 error. The code is as follows:
 ::
 
     #!Python
-    from bottle import route, run, debug, template, request, validate, send_file, error
+    from bottle import route, run, debug, template, request, send_file, error
     
     ...
     
@@ -609,7 +596,7 @@ At first, we need to import "defautl_app" from Bottle in our little script:
 ::
 
     #!Python
-    from bottle import route, run, debug, template, request, validate, send_file, error, default_app
+    from bottle import route, run, debug, template, request, send_file, error, default_app
     
 When you run your application via mod_wsgi, it is imperative to remove the ``run()`` statement from you code, otherwise it won't work here.
 
