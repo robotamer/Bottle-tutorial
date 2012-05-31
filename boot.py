@@ -45,6 +45,6 @@ def error500(error):
 app = StripPathMiddleware(bottle.app)
 
 if __name__ == "__main__":
-  debug(True)
+  bottle.debug(True)
 
 bottle.run(host='localhost', port=8080)
