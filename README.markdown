@@ -16,7 +16,7 @@ I am learning python and since I learn best by example I figured I'll share this
 
 This will install the tutorial:
 
-    $ git clone git://github.com/RoboTamer/Bottle-tutorial.git
+    $ git clone git://github.com/robotamer/Bottle-tutorial.git
     $ cd Bottle-tutorial
     $ python -m bottle  --debug --reload boot
 
